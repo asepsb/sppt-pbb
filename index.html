@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Pendataan PBB - Kab. Karawang</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #2563eb;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+
+    <!-- App Container -->
+    <div id="app" class="max-w-md mx-auto min-h-screen relative pb-20">
+        
+        <!-- Login View -->
+        <div id="login-view" class="p-6 pt-20">
+            <div class="text-center mb-10">
+                <div class="bg-blue-600 w-20 h-20 rounded-2xl mx-auto flex items-center justify-center shadow-lg mb-4">
+                    <i data-lucide="qr-code" class="text-white w-12 h-12"></i>
+                </div>
+                <h1 class="text-2xl font-extrabold text-slate-900">PBB MOBILE</h1>
+                <p class="text-slate-500">Sistem Pendataan & Distribusi Surat</p>
+            </div>
+
+            <div class="bg-white p-6 rounded-3xl shadow-xl border border-slate-100">
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2 text-slate-700">Username</label>
+                    <input type="text" id="username" class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Masukkan username">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-bold mb-2 text-slate-700">Password</label>
+                    <input type="password" id="password" class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••">
+                </div>
+                <button onclick="handleLogin()" id="login-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg active:scale-95">
+                    Masuk Sekarang
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Dashboard View (Hidden by default) -->
+        <div id="main-view" class="hidden">
+            <!-- Header -->
+            <header class="bg-blue-600 p-6 rounded-b-[2.5rem] shadow-lg text-white">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <p class="text-blue-100 text-sm">Selamat Bekerja,</p>
+                        <h2 id="display-user" class="text-xl font-bold">Petugas Lapangan</h2>
+                    </div>
+                    <button onclick="logout()" class="p-2 bg-blue-500 rounded-full">
+                        <i data-lucide="log-out" class="w-5 h-5 text-white"></i>
+                    </button>
+                </div>
+                <div class="bg-white/10 p-4 rounded-2xl backdrop-blur-sm">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="map-pin" class="w-5 h-5 text-yellow-400"></i>
+                        <div>
+                            <p class="text-xs text-blue-100">Wilayah Penugasan</p>
+                            <p id="display-wilayah" class="font-semibold text-sm">Sedang memuat...</p>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Menu Grid -->
+            <div class="p-6 grid grid-cols-2 gap-4">
+                <button onclick="showSection('scan')" class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center gap-3 hover:bg-blue-50 transition-colors">
+                    <div class="p-3 bg-blue-100 rounded-2xl">
+                        <i data-lucide="scan" class="text-blue-600 w-8 h-8"></i>
+                    </div>
+                    <span class="font-bold text-sm">Scan SPPT</span>
+                </button>
+                <button onclick="showSection('history')" class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center gap-3 hover:bg-blue-50 transition-colors">
+                    <div class="p-3 bg-green-100 rounded-2xl">
+                        <i data-lucide="history" class="text-green-600 w-8 h-8"></i>
+                    </div>
+                    <span class="font-bold text-sm">Riwayat</span>
+                </button>
+            </div>
+
+            <!-- Content Area -->
+            <div id="content-section" class="px-6 pb-24">
+                <!-- Welcome Card -->
+                <div id="welcome-card" class="bg-indigo-900 rounded-3xl p-6 text-white relative overflow-hidden shadow-xl">
+                    <div class="relative z-10">
+                        <h3 class="text-lg font-bold mb-2">Siap Melayani!</h3>
+                        <p class="text-indigo-200 text-sm leading-relaxed">Klik tombol Scan untuk mendata pendistribusian surat SPPT PBB ke warga.</p>
+                    </div>
+                    <i data-lucide="file-text" class="absolute -right-4 -bottom-4 w-32 h-32 text-white/10 rotate-12"></i>
+                </div>
+                
+                <!-- Input Form (Hidden initially) -->
+                <div id="form-section" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                        <i data-lucide="edit-3" class="w-5 h-5 text-blue-600"></i>
+                        Data Distribusi SPPT
+                    </h3>
+                    <div class="bg-white rounded-3xl p-6 shadow-md space-y-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase">Nomor Objek Pajak (NOP)</label>
+                            <div class="flex gap-2 mt-1">
+                                <input type="text" id="inp-nop" class="flex-1 bg-slate-50 border-none rounded-xl p-3 font-mono text-sm" value="32.17.020.012.006-0008.0">
+                                <button onclick="simulateScan()" class="bg-slate-100 p-3 rounded-xl text-slate-600"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Nama WP</label>
+                                <input type="text" id="inp-nama" class="w-full bg-slate-50 border-none rounded-xl p-3 text-sm mt-1" value="H SOMAD BIN RAINUN">
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 uppercase">Tahun</label>
+                                <input type="text" id="inp-tahun" class="w-full bg-slate-50 border-none rounded-xl p-3 text-sm mt-1" value="2026">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase">Penerima di Rumah</label>
+                            <input type="text" id="inp-penerima" class="w-full bg-slate-50 border-none rounded-xl p-3 text-sm mt-1" placeholder="Nama penerima surat">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-400 uppercase">Status</label>
+                            <select id="inp-status" class="w-full bg-slate-50 border-none rounded-xl p-3 text-sm mt-1">
+                                <option value="Terkirim">Sudah Diterima</option>
+                                <option value="Retur">Rumah Kosong / Retur</option>
+                                <option value="Ditolak">Warga Menolak</option>
+                            </select>
+                        </div>
+                        <div class="pt-2">
+                            <button onclick="submitData()" id="submit-btn" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200">
+                                Simpan Data & Lokasi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History List (Hidden initially) -->
+                <div id="history-section" class="hidden">
+                     <h3 class="text-lg font-bold mb-4">Riwayat Terakhir</h3>
+                     <div id="history-list" class="space-y-3">
+                         <!-- Data will be loaded here -->
+                         <p class="text-center text-slate-400 py-10">Belum ada riwayat hari ini.</p>
+                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="toast" class="fixed bottom-24 left-6 right-6 p-4 rounded-2xl bg-slate-900 text-white text-sm shadow-2xl transition-all translate-y-32 opacity-0 z-50 flex items-center gap-3">
+            <i data-lucide="info" class="w-5 h-5 text-blue-400"></i>
+            <span id="toast-msg">Pesan sistem di sini.</span>
+        </div>
+
+        <!-- Overlay Loading -->
+        <div id="loading-overlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] hidden flex items-center justify-center">
+            <div class="flex flex-col items-center">
+                <div class="loading-spinner mb-4"></div>
+                <p class="font-bold text-slate-700">Memproses...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- KONFIGURASI ---
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw-6r-VG3d3IUtPgBmg5sULpjpDdKaj4yff2xRuvP6vb0TZq95a1koCSVuCU5Dh1hL_/exec";
+        
+        let currentUser = null;
+        let currentPos = { lat: null, lng: null };
+
+        // --- INISIALISASI ---
+        window.onload = () => {
+            lucide.createIcons();
+            initLocation();
+        };
+
+        function initLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    currentPos.lat = position.coords.latitude;
+                    currentPos.lng = position.coords.longitude;
+                });
+            }
+        }
+
+        // --- FUNGSI UI ---
+        function showToast(msg, duration = 3000) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            toast.classList.remove('translate-y-32', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-32', 'opacity-0');
+            }, duration);
+        }
+
+        function toggleLoading(show) {
+            document.getElementById('loading-overlay').classList.toggle('hidden', !show);
+        }
+
+        function showSection(name) {
+            document.getElementById('welcome-card').classList.add('hidden');
+            document.getElementById('form-section').classList.add('hidden');
+            document.getElementById('history-section').classList.add('hidden');
+
+            if(name === 'scan') {
+                document.getElementById('form-section').classList.remove('hidden');
+                simulateScan(); // Simulasi scan otomatis saat buka
+            } else if (name === 'history') {
+                document.getElementById('history-section').classList.remove('hidden');
+                loadHistory();
+            }
+        }
+
+        function simulateScan() {
+            // Dalam aplikasi nyata, ini akan memicu kamera
+            // Di sini kita hanya mengacak NOP untuk simulasi
+            const randomNOP = "32.17.020.012.006-" + Math.floor(Math.random() * 9000 + 1000) + ".0";
+            document.getElementById('inp-nop').value = randomNOP;
+            showToast("QR Code Berhasil Dipindai");
+        }
+
+        // --- FUNGSI API ---
+
+        async function handleLogin() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+
+            if(!user || !pass) return showToast("Masukkan User & Password");
+
+            toggleLoading(true);
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: 'login',
+                        username: user,
+                        password: pass
+                    })
+                });
+                const result = await response.json();
+
+                if(result.result === 'success') {
+                    currentUser = { name: user, role: result.role, wilayah: result.wilayah };
+                    document.getElementById('display-user').innerText = user.toUpperCase();
+                    document.getElementById('display-wilayah').innerText = result.wilayah;
+                    
+                    document.getElementById('login-view').classList.add('hidden');
+                    document.getElementById('main-view').classList.remove('hidden');
+                    showToast("Login Berhasil!");
+                } else {
+                    showToast(result.message || "Login Gagal");
+                }
+            } catch (error) {
+                showToast("Terjadi kesalahan koneksi");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function submitData() {
+            if(!currentPos.lat) {
+                showToast("GPS belum aktif. Mohon izinkan lokasi.");
+                initLocation();
+                return;
+            }
+
+            const data = {
+                action: 'inputData',
+                nop: document.getElementById('inp-nop').value,
+                tahun: document.getElementById('inp-tahun').value,
+                nama_wp: document.getElementById('inp-nama').value,
+                penerima: document.getElementById('inp-penerima').value || "-",
+                status: document.getElementById('inp-status').value,
+                alamat_op: "KP LAME RT 004/002", // Mock data from SPPT
+                rt: "004",
+                rw: "02",
+                tagihan: "2036736",
+                lat: currentPos.lat,
+                lng: currentPos.lng,
+                petugas: currentUser.name
+            };
+
+            if(!data.penerima || data.penerima === "-") {
+                if(!confirm("Nama penerima kosong. Tetap simpan?")) return;
+            }
+
+            toggleLoading(true);
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+                const res = await response.json();
+                
+                if(res.result === 'success') {
+                    showToast("✅ Berhasil: Data Tersimpan di Sheet");
+                    document.getElementById('inp-penerima').value = "";
+                    showSection('history'); // Pindah ke riwayat setelah sukses
+                } else {
+                    showToast("❌ Gagal: " + res.error);
+                }
+            } catch (error) {
+                showToast("Kesalahan jaringan");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function loadHistory() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = '<div class="text-center py-5"><div class="loading-spinner mx-auto"></div></div>';
+
+            try {
+                const response = await fetch(SCRIPT_URL);
+                const data = await response.json();
+                
+                if(data.length === 0) {
+                    list.innerHTML = '<p class="text-center text-slate-400 py-10">Belum ada data di Spreadsheet.</p>';
+                    return;
+                }
+
+                // Ambil 5 data terakhir (dibalik)
+                const recent = data.slice(-5).reverse();
+                list.innerHTML = recent.map(item => `
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 ${item.Status === 'Terkirim' ? 'border-green-500' : 'border-red-500'}">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-xs font-bold text-slate-400">${item.NOP}</p>
+                                <p class="font-bold text-slate-800 text-sm">${item.Nama_WP}</p>
+                            </div>
+                            <span class="text-[10px] bg-slate-100 px-2 py-1 rounded-full font-bold uppercase">${item.Status}</span>
+                        </div>
+                        <div class="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                            <span class="flex items-center gap-1"><i data-lucide="user" class="w-3 h-3"></i> ${item.Penerima}</span>
+                            <span>${new Date(item.Waktu).toLocaleTimeString('id-ID')}</span>
+                        </div>
+                    </div>
+                `).join('');
+                lucide.createIcons();
+            } catch (error) {
+                list.innerHTML = '<p class="text-center text-red-400 py-10">Gagal memuat data.</p>';
+            }
+        }
+
+        function logout() {
+            if(confirm("Keluar dari aplikasi?")) {
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
