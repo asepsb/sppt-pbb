@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PBB Mobile - Kab. Karawang</title>
+    <title>ePBB Mobile - Warga Desa Sukaluyu</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
@@ -23,6 +23,16 @@
         #reader { width: 100%; border-radius: 20px; overflow: hidden; border: none !important; }
         .form-input { @apply w-full bg-slate-100 border-none rounded-xl p-3 text-sm mt-1 focus:ring-2 focus:ring-blue-500; }
         .label-style { @apply text-[10px] font-bold text-slate-400 uppercase; }
+        
+        /* Animasi berdenyut untuk akurasi buruk */
+        .pulse-red {
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0% { background-color: rgba(239, 68, 68, 0.1); }
+            50% { background-color: rgba(239, 68, 68, 0.3); }
+            100% { background-color: rgba(239, 68, 68, 0.1); }
+        }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
@@ -63,12 +73,20 @@
                         <i data-lucide="log-out" class="w-5 h-5"></i>
                     </button>
                 </div>
-                <div class="bg-white/10 p-4 rounded-2xl backdrop-blur-sm flex justify-between items-center text-xs border border-white/20">
+                
+                <!-- Status GPS & Akurasi -->
+                <div id="gps-banner" class="bg-white/10 p-4 rounded-2xl backdrop-blur-sm flex justify-between items-center text-xs border border-white/20 transition-all duration-500">
                     <div class="flex items-center gap-2">
                         <div id="gps-indicator" class="w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
-                        <span id="gps-status" class="font-medium">MENCARI GPS...</span>
+                        <div class="flex flex-col">
+                            <span id="gps-status" class="font-bold tracking-tight">MENCARI GPS...</span>
+                            <span id="gps-advice" class="text-[8px] text-blue-200 hidden">KELUAR RUANGAN UNTUK SINYAL LEBIH BAIK</span>
+                        </div>
                     </div>
-                    <span id="gps-accuracy" class="font-bold text-yellow-300">0m</span>
+                    <div class="flex flex-col items-end">
+                        <span class="text-[8px] text-blue-200 uppercase font-bold tracking-widest">Akurasi</span>
+                        <span id="gps-accuracy" class="font-bold text-white text-sm">0m</span>
+                    </div>
                 </div>
             </header>
 
@@ -95,6 +113,13 @@
                 <div id="form-section" class="hidden animate-in slide-in-from-bottom-4 duration-300">
                     <div class="bg-white rounded-3xl p-6 shadow-md space-y-4 border border-blue-50 relative overflow-hidden">
                         <div class="absolute top-0 left-0 w-full h-1 bg-blue-600"></div>
+                        
+                        <!-- Warning Akurasi Buruk di Form -->
+                        <div id="form-gps-warning" class="hidden p-3 bg-red-50 rounded-xl border border-red-100 flex items-center gap-3 mb-2">
+                            <i data-lucide="map-pin-off" class="text-red-500 w-5 h-5 shrink-0"></i>
+                            <p class="text-[10px] text-red-600 leading-tight"><b>Lokasi Kurang Akurat!</b> Harap keluar rumah/ruangan sebentar agar koordinat lebih presisi sebelum klik simpan.</p>
+                        </div>
+
                         <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2 mb-2">
                              <i data-lucide="file-text" class="w-4 h-4 text-blue-600"></i> Detail Objek Pajak
                         </h3>
@@ -183,11 +208,10 @@
     </div>
 
     <script>
-        // MASUKKAN URL GOOGLE APPS SCRIPT ANDA DI BAWAH INI
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwVtLaxlD4vX502zChKw0m_JBGFxPg_89mJROl_hk1HTr_m66zAX1tWjVk1YBTfh071/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz4ymzggOAmuWuvKlDImvdBtm3YcrgQPxYELKsNqFrkzdaNb4_f6GWAEFF-WLkPaTUP/exec";
         
         let currentUser = null;
-        let currentPos = { lat: null, lng: null };
+        let currentPos = { lat: null, lng: null, accuracy: null };
         let html5QrCode = null;
 
         window.onload = () => { 
@@ -195,18 +219,50 @@
             startGpsTracking(); 
         };
 
-        // --- GPS ---
+        // --- GPS TRACKING DENGAN PANDUAN AKURASI ---
         function startGpsTracking() {
             if (!navigator.geolocation) return;
             navigator.geolocation.watchPosition((p) => {
                 currentPos.lat = p.coords.latitude;
                 currentPos.lng = p.coords.longitude;
+                currentPos.accuracy = Math.round(p.coords.accuracy);
+
                 const indicator = document.getElementById('gps-indicator');
-                indicator.className = "w-2.5 h-2.5 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] animate-pulse";
-                document.getElementById('gps-status').innerText = "GPS AKTIF (TERKUNCI)";
-                document.getElementById('gps-accuracy').innerText = Math.round(p.coords.accuracy) + "m";
+                const accDisplay = document.getElementById('gps-accuracy');
+                const statusDisplay = document.getElementById('gps-status');
+                const adviceDisplay = document.getElementById('gps-advice');
+                const banner = document.getElementById('gps-banner');
+                const formWarning = document.getElementById('form-gps-warning');
+
+                // Logika Visual Berdasarkan Akurasi
+                if (currentPos.accuracy <= 20) {
+                    indicator.className = "w-2.5 h-2.5 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] animate-pulse";
+                    accDisplay.className = "font-bold text-green-300 text-sm";
+                    statusDisplay.innerText = "GPS AKURAT (BAGUS)";
+                    adviceDisplay.classList.add('hidden');
+                    banner.classList.remove('pulse-red');
+                    formWarning.classList.add('hidden');
+                } else if (currentPos.accuracy <= 50) {
+                    indicator.className = "w-2.5 h-2.5 bg-yellow-400 rounded-full shadow-[0_0_10px_rgba(250,204,21,0.6)]";
+                    accDisplay.className = "font-bold text-yellow-300 text-sm";
+                    statusDisplay.innerText = "GPS CUKUP";
+                    adviceDisplay.classList.remove('hidden');
+                    adviceDisplay.innerText = "COBA CARI TEMPAT TERBUKA";
+                    banner.classList.remove('pulse-red');
+                    formWarning.classList.add('hidden');
+                } else {
+                    indicator.className = "w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.6)] animate-bounce";
+                    accDisplay.className = "font-bold text-red-300 text-sm";
+                    statusDisplay.innerText = "GPS TIDAK AKURAT";
+                    adviceDisplay.classList.remove('hidden');
+                    adviceDisplay.innerText = "KELUAR RUMAH / RUANGAN SEKARANG!";
+                    banner.classList.add('pulse-red');
+                    formWarning.classList.remove('hidden');
+                }
+
+                accDisplay.innerText = currentPos.accuracy + "m";
             }, (err) => {
-                showToast("GPS Error: Perlu izin lokasi!");
+                showToast("⚠️ GPS Dimatikan/Error. Aktifkan lokasi!");
             }, { enableHighAccuracy: true });
         }
 
@@ -231,7 +287,7 @@
             if (html5QrCode) {
                 html5QrCode.stop().then(() => {
                     document.getElementById('scanner-view').classList.add('hidden');
-                });
+                }).catch(() => document.getElementById('scanner-view').classList.add('hidden'));
             } else {
                 document.getElementById('scanner-view').classList.add('hidden');
             }
@@ -270,7 +326,13 @@
         async function submitData() {
             const penerima = document.getElementById('inp-penerima').value;
             if(!penerima) return showToast("⚠️ Nama Penerima wajib diisi!");
+            
             if(!currentPos.lat) return showToast("⚠️ Tunggu sampai GPS Terkunci!");
+            
+            // Konfirmasi jika akurasi masih di atas 50m
+            if(currentPos.accuracy > 50) {
+                if(!confirm("Lokasi masih kurang akurat (" + currentPos.accuracy + "m). Disarankan keluar ruangan agar titik Maps presisi. Tetap simpan?")) return;
+            }
 
             const payload = {
                 action: 'inputData',
@@ -342,7 +404,7 @@
             try {
                 const r = await fetch(SCRIPT_URL);
                 const d = await r.json();
-                if(d.length === 0) {
+                if(!Array.isArray(d) || d.length === 0) {
                     list.innerHTML = '<div class="text-center py-10"><i data-lucide="package-open" class="mx-auto w-10 h-10 text-slate-200 mb-2"></i><p class="text-[10px] text-slate-400">Belum ada riwayat hari ini</p></div>';
                     lucide.createIcons();
                 } else {
