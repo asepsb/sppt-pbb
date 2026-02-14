@@ -105,6 +105,7 @@
                     <button onclick="closeScanner()" class="w-full mt-4 bg-red-50 text-red-600 font-bold py-3 rounded-xl text-xs uppercase tracking-wider">Batalkan Pemindaian</button>
                 </div>
 
+                <!-- Form Section (Sekarang muncul juga untuk Manual Input) -->
                 <div id="form-section" class="hidden animate-in slide-in-from-bottom-4 duration-300">
                     <div class="bg-white rounded-3xl p-6 shadow-md space-y-4 border border-blue-50 relative overflow-hidden">
                         <div class="absolute top-0 left-0 w-full h-1 bg-blue-600"></div>
@@ -117,36 +118,44 @@
                         <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2 mb-2">
                              <i data-lucide="file-text" class="w-4 h-4 text-blue-600"></i> Detail Objek Pajak
                         </h3>
+                        
+                        <!-- Input NOP dengan Tombol Cari Manual -->
                         <div>
                             <label class="label-style">Nomor Objek Pajak (NOP)</label>
-                            <input type="text" id="inp-nop" class="form-input font-mono font-bold text-blue-800" readonly>
+                            <div class="flex gap-2">
+                                <input type="text" id="inp-nop" class="form-input font-mono font-bold text-blue-800" placeholder="Ketik NOP atau Scan...">
+                                <button onclick="manualSearch()" class="bg-blue-100 p-3 rounded-xl text-blue-600 hover:bg-blue-200 active:scale-95 transition-all">
+                                    <i data-lucide="search" class="w-5 h-5"></i>
+                                </button>
+                            </div>
                         </div>
+
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="label-style">Tahun</label>
-                                <input type="text" id="inp-tahun" class="form-input" readonly>
+                                <input type="text" id="inp-tahun" class="form-input" placeholder="2026">
                             </div>
                             <div>
                                 <label class="label-style text-blue-600">Tagihan Terhutang</label>
-                                <input type="text" id="inp-tagihan" class="form-input font-bold text-blue-600" readonly>
+                                <input type="text" id="inp-tagihan" class="form-input font-bold text-blue-600" placeholder="Rp 0">
                             </div>
                         </div>
                         <div>
                             <label class="label-style">Nama Wajib Pajak (WP)</label>
-                            <input type="text" id="inp-nama" class="form-input font-bold uppercase" readonly>
+                            <input type="text" id="inp-nama" class="form-input font-bold uppercase" placeholder="Nama Wajib Pajak">
                         </div>
                         <div>
                             <label class="label-style">Alamat Objek Pajak</label>
-                            <textarea id="inp-alamat" class="form-input h-14 resize-none leading-relaxed" readonly></textarea>
+                            <textarea id="inp-alamat" class="form-input h-14 resize-none leading-relaxed" placeholder="Alamat lengkap..."></textarea>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="label-style">RT</label>
-                                <input type="text" id="inp-rt" class="form-input" readonly>
+                                <input type="text" id="inp-rt" class="form-input" placeholder="000">
                             </div>
                             <div>
                                 <label class="label-style">RW</label>
-                                <input type="text" id="inp-rw" class="form-input" readonly>
+                                <input type="text" id="inp-rw" class="form-input" placeholder="000">
                             </div>
                         </div>
                         
@@ -210,14 +219,11 @@
             lucide.createIcons(); 
         };
 
-        // --- GPS TRACKING DENGAN PENANGANAN ERROR ---
         function startGpsTracking() {
             if (!navigator.geolocation) {
                 showToast("⚠️ Browser tidak mendukung GPS");
                 return;
             }
-
-            // Hapus tracking lama jika ada
             if (watchId !== null) navigator.geolocation.clearWatch(watchId);
 
             watchId = navigator.geolocation.watchPosition((p) => {
@@ -256,7 +262,6 @@
                     banner.classList.add('pulse-red');
                     formWarning.classList.remove('hidden');
                 }
-
                 accDisplay.innerText = currentPos.accuracy + "m";
             }, (err) => {
                 let msg = "⚠️ Gagal akses GPS";
@@ -265,17 +270,13 @@
             }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
         }
 
-        // --- SCANNER DENGAN TRY-CATCH ---
         async function openScanner() {
             try {
                 document.getElementById('scanner-view').classList.remove('hidden');
                 document.getElementById('form-section').classList.add('hidden');
                 document.getElementById('history-section').classList.add('hidden');
                 
-                // Pastikan scanner lama berhenti total
-                if (html5QrCode) {
-                    await html5QrCode.stop().catch(() => {});
-                }
+                if (html5QrCode) await html5QrCode.stop().catch(() => {});
 
                 html5QrCode = new Html5Qrcode("reader");
                 const config = { fps: 15, qrbox: { width: 250, height: 250 } };
@@ -285,7 +286,9 @@
                     config, 
                     (decodedText) => {
                         closeScanner();
-                        fetchDataByNOP(decodedText);
+                        // Bersihkan hasil scan dari karakter aneh
+                        const cleanNop = decodedText.replace(/[^0-9.\-]/g, '');
+                        fetchDataByNOP(cleanNop);
                     }
                 );
             } catch (err) {
@@ -305,12 +308,27 @@
             document.getElementById('scanner-view').classList.add('hidden');
         }
 
+        // Fungsi manual search
+        function manualSearch() {
+            const manualNop = document.getElementById('inp-nop').value;
+            if (manualNop.length < 5) {
+                showToast("⚠️ Ketik minimal 5 digit NOP");
+                return;
+            }
+            fetchDataByNOP(manualNop);
+        }
+
         async function fetchDataByNOP(nop) {
             toggleLoading(true, "MENCARI NOP: " + nop);
             try {
+                // Pastikan sheet 'Database' sudah diformat Plain Text untuk kolom NOP
                 const resp = await fetch(`${SCRIPT_URL}?action=getNopData&nop=${nop}`);
                 const res = await resp.json();
                 
+                // Selalu tampilkan form, baik data ketemu atau tidak (agar bisa input manual jika darurat)
+                showSection('scan'); 
+                document.getElementById('inp-nop').value = nop; // Set NOP yang dicari
+
                 if(res.result === 'success') {
                     document.getElementById('inp-nop').value = res.data.NOP;
                     document.getElementById('inp-tahun').value = res.data.Tahun;
@@ -319,18 +337,32 @@
                     document.getElementById('inp-rt').value = res.data.RT;
                     document.getElementById('inp-rw').value = res.data.RW;
                     document.getElementById('inp-tagihan').value = res.data.Tagihan;
-                    document.getElementById('inp-penerima').value = ""; 
-                    
-                    showSection('scan');
                     showToast("✅ Data WP ditemukan!");
                 } else {
-                    showToast("❌ NOP " + nop + " tidak terdaftar di Database!");
+                    // Jika tidak ketemu, kosongkan field agar petugas isi manual
+                    document.getElementById('inp-nama').value = "";
+                    document.getElementById('inp-alamat').value = "";
+                    document.getElementById('inp-rt').value = "";
+                    document.getElementById('inp-rw').value = "";
+                    document.getElementById('inp-tagihan').value = "";
+                    showToast("⚠️ Data tidak ditemukan. Silakan input manual.");
+                    // Hilangkan readonly agar bisa diedit
+                    enableManualInput();
                 }
+                document.getElementById('inp-penerima').value = ""; 
             } catch (e) { 
                 showToast("⚠️ Masalah koneksi ke server"); 
             } finally { 
                 toggleLoading(false); 
             }
+        }
+
+        function enableManualInput() {
+            ['inp-tahun','inp-nama','inp-alamat','inp-rt','inp-rw','inp-tagihan'].forEach(id => {
+                document.getElementById(id).removeAttribute('readonly');
+                document.getElementById(id).classList.remove('bg-slate-100');
+                document.getElementById(id).classList.add('bg-white', 'border', 'border-yellow-300');
+            });
         }
 
         async function submitData() {
@@ -359,7 +391,7 @@
                 petugas: currentUser.name
             };
 
-            toggleLoading(true, "MENGIRIM KE LAPORAN...");
+            toggleLoading(true, "MENGIRIM DATA...");
             try {
                 const response = await fetch(SCRIPT_URL, { 
                     method: 'POST', 
@@ -369,6 +401,8 @@
                 if(res.result === 'success') {
                     showToast("🚀 Data berhasil disimpan!");
                     showSection('history');
+                } else {
+                    showToast("❌ Gagal: " + res.message);
                 }
             } catch (e) { 
                 showToast("❌ Gagal menyimpan data!"); 
@@ -403,7 +437,6 @@
             document.getElementById('login-view').classList.add('hidden');
             document.getElementById('main-view').classList.remove('hidden');
             lucide.createIcons();
-            // GPS Baru dimulai setelah login untuk keamanan
             startGpsTracking(); 
         }
 
