@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ePBB Mobile - Warga Desa Sukaluyu</title>
+    <title>ePBB Mobile - OCR Scanner</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Tambahkan Tesseract.js untuk OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         .loading-spinner {
             border: 4px solid rgba(0, 0, 0, 0.1);
@@ -45,7 +47,7 @@
                     <i data-lucide="qr-code" class="text-white w-12 h-12"></i>
                 </div>
                 <h1 class="text-2xl font-extrabold text-slate-900">PBB MOBILE</h1>
-                <p class="text-slate-500">Sistem Pendataan Terintegrasi</p>
+                <p class="text-slate-500">Scan & OCR Terintegrasi</p>
             </div>
             <div class="bg-white p-6 rounded-3xl shadow-xl border border-slate-100">
                 <div class="mb-4">
@@ -75,10 +77,9 @@
                 
                 <div id="gps-banner" class="bg-white/10 p-4 rounded-2xl backdrop-blur-sm flex justify-between items-center text-xs border border-white/20 transition-all duration-500">
                     <div class="flex items-center gap-2">
-                        <div id="gps-indicator" class="w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
+                        <div id="gps-indicator" class="w-2.5 h-2.5 bg-red-500 rounded-full"></div>
                         <div class="flex flex-col">
-                            <span id="gps-status" class="font-bold tracking-tight">MENCARI GPS...</span>
-                            <span id="gps-advice" class="text-[8px] text-blue-200 hidden">KELUAR RUANGAN UNTUK SINYAL LEBIH BAIK</span>
+                            <span id="gps-status" class="font-bold tracking-tight uppercase">Mencari GPS...</span>
                         </div>
                     </div>
                     <div class="flex flex-col items-end">
@@ -88,43 +89,50 @@
                 </div>
             </header>
 
-            <div class="p-6 grid grid-cols-2 gap-4">
-                <button onclick="openScanner()" class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center gap-2 active:bg-blue-50 transition-colors">
-                    <div class="p-3 bg-blue-100 rounded-2xl"><i data-lucide="camera" class="text-blue-600 w-8 h-8"></i></div>
-                    <span class="font-bold text-[11px] text-slate-600">SCAN SPPT</span>
+            <!-- Action Buttons -->
+            <div class="p-6 grid grid-cols-3 gap-3">
+                <button onclick="openScanner()" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center gap-2 active:bg-blue-50 transition-colors">
+                    <div class="p-2 bg-blue-100 rounded-xl"><i data-lucide="scan" class="text-blue-600 w-6 h-6"></i></div>
+                    <span class="font-bold text-[9px] text-slate-600">QR SCAN</span>
                 </button>
-                <button onclick="showSection('history')" class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center gap-2 active:bg-green-50 transition-colors">
-                    <div class="p-3 bg-green-100 rounded-2xl"><i data-lucide="history" class="text-green-600 w-8 h-8"></i></div>
-                    <span class="font-bold text-[11px] text-slate-600">RIWAYAT</span>
+                <button onclick="triggerOCR()" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center gap-2 active:bg-purple-50 transition-colors">
+                    <div class="p-2 bg-purple-100 rounded-xl"><i data-lucide="file-search" class="text-purple-600 w-6 h-6"></i></div>
+                    <span class="font-bold text-[9px] text-slate-600">FOTO OCR</span>
                 </button>
+                <button onclick="showSection('history')" class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center gap-2 active:bg-green-50 transition-colors">
+                    <div class="p-2 bg-green-100 rounded-xl"><i data-lucide="history" class="text-green-600 w-6 h-6"></i></div>
+                    <span class="font-bold text-[9px] text-slate-600">RIWAYAT</span>
+                </button>
+                <!-- Hidden Input for OCR -->
+                <input type="file" id="ocr-input" accept="image/*" class="hidden" onchange="handleOCR(event)">
             </div>
 
             <div id="content-section" class="px-6 pb-24">
+                <!-- QR Scanner View -->
                 <div id="scanner-view" class="hidden mb-6 bg-white p-4 rounded-3xl shadow-md border-2 border-dashed border-blue-200 overflow-hidden">
                     <div id="reader"></div>
-                    <button onclick="closeScanner()" class="w-full mt-4 bg-red-50 text-red-600 font-bold py-3 rounded-xl text-xs uppercase tracking-wider">Batalkan Pemindaian</button>
+                    <button onclick="closeScanner()" class="w-full mt-4 bg-red-50 text-red-600 font-bold py-3 rounded-xl text-xs uppercase tracking-wider">Batalkan</button>
                 </div>
 
-                <!-- Form Section (Sekarang muncul juga untuk Manual Input) -->
+                <!-- Form Section -->
                 <div id="form-section" class="hidden animate-in slide-in-from-bottom-4 duration-300">
                     <div class="bg-white rounded-3xl p-6 shadow-md space-y-4 border border-blue-50 relative overflow-hidden">
                         <div class="absolute top-0 left-0 w-full h-1 bg-blue-600"></div>
                         
                         <div id="form-gps-warning" class="hidden p-3 bg-red-50 rounded-xl border border-red-100 flex items-center gap-3 mb-2">
                             <i data-lucide="map-pin-off" class="text-red-500 w-5 h-5 shrink-0"></i>
-                            <p class="text-[10px] text-red-600 leading-tight"><b>Lokasi Kurang Akurat!</b> Harap keluar rumah/ruangan sebentar agar koordinat lebih presisi sebelum klik simpan.</p>
+                            <p class="text-[10px] text-red-600 leading-tight"><b>Lokasi Kurang Akurat!</b> Harap ke tempat terbuka.</p>
                         </div>
 
                         <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2 mb-2">
                              <i data-lucide="file-text" class="w-4 h-4 text-blue-600"></i> Detail Objek Pajak
                         </h3>
                         
-                        <!-- Input NOP dengan Tombol Cari Manual -->
                         <div>
-                            <label class="label-style">Nomor Objek Pajak (NOP)</label>
+                            <label class="label-style">NOP (Nomor Objek Pajak)</label>
                             <div class="flex gap-2">
-                                <input type="text" id="inp-nop" class="form-input font-mono font-bold text-blue-800" placeholder="Ketik NOP atau Scan...">
-                                <button onclick="manualSearch()" class="bg-blue-100 p-3 rounded-xl text-blue-600 hover:bg-blue-200 active:scale-95 transition-all">
+                                <input type="text" id="inp-nop" class="form-input font-mono font-bold text-blue-800" placeholder="Ketik NOP...">
+                                <button onclick="manualSearch()" class="bg-blue-100 p-3 rounded-xl text-blue-600 active:scale-95">
                                     <i data-lucide="search" class="w-5 h-5"></i>
                                 </button>
                             </div>
@@ -133,20 +141,20 @@
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="label-style">Tahun</label>
-                                <input type="text" id="inp-tahun" class="form-input" placeholder="2026">
+                                <input type="text" id="inp-tahun" class="form-input" placeholder="2025">
                             </div>
                             <div>
-                                <label class="label-style text-blue-600">Tagihan Terhutang</label>
+                                <label class="label-style text-blue-600">Tagihan</label>
                                 <input type="text" id="inp-tagihan" class="form-input font-bold text-blue-600" placeholder="Rp 0">
                             </div>
                         </div>
                         <div>
-                            <label class="label-style">Nama Wajib Pajak (WP)</label>
-                            <input type="text" id="inp-nama" class="form-input font-bold uppercase" placeholder="Nama Wajib Pajak">
+                            <label class="label-style">Nama Wajib Pajak</label>
+                            <input type="text" id="inp-nama" class="form-input font-bold uppercase" placeholder="Nama WP">
                         </div>
                         <div>
-                            <label class="label-style">Alamat Objek Pajak</label>
-                            <textarea id="inp-alamat" class="form-input h-14 resize-none leading-relaxed" placeholder="Alamat lengkap..."></textarea>
+                            <label class="label-style">Alamat Objek</label>
+                            <textarea id="inp-alamat" class="form-input h-14 resize-none leading-relaxed" placeholder="Alamat..."></textarea>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
@@ -161,34 +169,29 @@
                         
                         <div class="pt-2">
                              <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2 mb-3">
-                                <i data-lucide="user-check" class="w-4 h-4 text-green-600"></i> Konfirmasi Penerimaan
+                                <i data-lucide="user-check" class="w-4 h-4 text-green-600"></i> Penerima
                             </h3>
                             <div class="space-y-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                <div>
-                                    <label class="label-style text-blue-600 font-extrabold">Nama Penerima Berkas</label>
-                                    <input type="text" id="inp-penerima" class="form-input bg-white border border-blue-100" placeholder="Ketik nama orang yang menerima...">
-                                </div>
-                                <div>
-                                    <label class="label-style text-slate-500">Status Distribusi</label>
-                                    <select id="inp-status" class="form-input bg-white border border-slate-100">
-                                        <option value="Terkirim">Sudah Diterima Langsung</option>
-                                        <option value="Titip Tetangga">Titip Tetangga / Saudara</option>
-                                        <option value="Rumah Kosong">Rumah Kosong / Tutup</option>
-                                        <option value="Retur">WP Pindah / Tidak Ditemukan</option>
-                                    </select>
-                                </div>
+                                <input type="text" id="inp-penerima" class="form-input bg-white" placeholder="Nama Penerima Berkas...">
+                                <select id="inp-status" class="form-input bg-white">
+                                    <option value="Terkirim">Sudah Diterima Langsung</option>
+                                    <option value="Titip Tetangga">Titip Tetangga</option>
+                                    <option value="Rumah Kosong">Rumah Kosong</option>
+                                    <option value="Retur">WP Pindah/Meninggal</option>
+                                </select>
                             </div>
                         </div>
 
-                        <button onclick="submitData()" id="submit-btn" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-transform active:scale-95">
-                            <i data-lucide="send" class="w-5 h-5"></i> SIMPAN KE SPREADSHEET
+                        <button onclick="submitData()" id="submit-btn" class="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all">
+                            <i data-lucide="send" class="w-5 h-5"></i> SIMPAN DATA
                         </button>
                     </div>
                 </div>
 
+                <!-- History Section -->
                 <div id="history-section" class="hidden">
                     <div class="flex justify-between items-center mb-4">
-                         <h3 class="text-sm font-bold text-slate-700">10 Entri Terakhir</h3>
+                         <h3 class="text-sm font-bold text-slate-700">Entri Terbaru</h3>
                          <button onclick="loadHistory()" class="text-xs text-blue-600 font-bold">Refresh</button>
                     </div>
                     <div id="history-list" class="space-y-3"></div>
@@ -196,6 +199,7 @@
             </div>
         </div>
 
+        <!-- Global UI Components -->
         <div id="toast" class="fixed bottom-24 left-6 right-6 p-4 rounded-2xl bg-slate-900 text-white text-[11px] shadow-2xl transition-all translate-y-32 opacity-0 z-50 flex items-center gap-3">
             <i data-lucide="info" class="w-4 h-4"></i>
             <span id="toast-msg"></span>
@@ -203,7 +207,7 @@
         
         <div id="loading-overlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-[100] hidden flex flex-col items-center justify-center">
             <div class="loading-spinner mb-4 shadow-xl"></div>
-            <p id="loading-text" class="font-bold text-slate-700 text-[10px] tracking-[0.2em] uppercase">Memproses Data...</p>
+            <p id="loading-text" class="font-bold text-slate-700 text-[10px] tracking-[0.2em] uppercase">Memproses...</p>
         </div>
     </div>
 
@@ -215,165 +219,142 @@
         let html5QrCode = null;
         let watchId = null;
 
-        window.onload = () => { 
-            lucide.createIcons(); 
-        };
+        // --- FUNGSI OCR (GAMBAR KE TEXT) ---
+        function triggerOCR() {
+            document.getElementById('ocr-input').click();
+        }
+
+        async function handleOCR(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            toggleLoading(true, "SEDANG MEMBACA GAMBAR (OCR)...");
+            
+            try {
+                // Konfigurasi worker tesseract untuk bahasa Indonesia
+                const worker = await Tesseract.createWorker('ind');
+                const { data: { text } } = await worker.recognize(file);
+                await worker.terminate();
+
+                console.log("OCR Result:", text);
+                extractInfoFromText(text);
+                
+                showToast("✅ OCR Berhasil Membaca Gambar");
+            } catch (err) {
+                console.error(err);
+                showToast("❌ Gagal membaca gambar");
+            } finally {
+                toggleLoading(false);
+                event.target.value = ""; // Reset input
+            }
+        }
+
+        function extractInfoFromText(text) {
+            // Bersihkan teks dari baris baru yang berlebihan
+            const cleanText = text.replace(/\n/g, ' ');
+            
+            // Cari NOP (Pola standar XX.XX.XXX.XXX.XXX-XXXX.X atau 18 digit angka)
+            const nopMatch = text.match(/\d{2}\.\d{2}\.\d{3}\.\d{3}\.\d{3}\-\d{4}\.\d{1}/) || text.match(/\d{18}/);
+            
+            showSection('scan');
+            
+            if (nopMatch) {
+                const rawNop = nopMatch[0].replace(/[^0-9]/g, '');
+                document.getElementById('inp-nop').value = rawNop;
+                fetchDataByNOP(rawNop);
+            } else {
+                showToast("⚠️ NOP tidak terdeteksi jelas, silakan input manual.");
+                enableManualInput();
+            }
+        }
+
+        // --- SISTEM LOGIN & GPS ---
+        function handleLogin() {
+            const user = document.getElementById('username').value;
+            if(!user) return showToast("Masukkan Nama Petugas!");
+            currentUser = { name: user };
+            document.getElementById('display-user').innerText = user;
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('main-view').classList.remove('hidden');
+            lucide.createIcons();
+            startGpsTracking(); 
+        }
 
         function startGpsTracking() {
-            if (!navigator.geolocation) {
-                showToast("⚠️ Browser tidak mendukung GPS");
-                return;
-            }
-            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-
+            if (!navigator.geolocation) return;
             watchId = navigator.geolocation.watchPosition((p) => {
                 currentPos.lat = p.coords.latitude;
                 currentPos.lng = p.coords.longitude;
                 currentPos.accuracy = Math.round(p.coords.accuracy);
-
+                document.getElementById('gps-accuracy').innerText = currentPos.accuracy + "m";
                 const indicator = document.getElementById('gps-indicator');
-                const accDisplay = document.getElementById('gps-accuracy');
-                const statusDisplay = document.getElementById('gps-status');
-                const adviceDisplay = document.getElementById('gps-advice');
-                const banner = document.getElementById('gps-banner');
-                const formWarning = document.getElementById('form-gps-warning');
-
-                if (currentPos.accuracy <= 20) {
-                    indicator.className = "w-2.5 h-2.5 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] animate-pulse";
-                    accDisplay.className = "font-bold text-green-300 text-sm";
-                    statusDisplay.innerText = "GPS AKURAT (BAGUS)";
-                    adviceDisplay.classList.add('hidden');
-                    banner.classList.remove('pulse-red');
-                    formWarning.classList.add('hidden');
-                } else if (currentPos.accuracy <= 50) {
-                    indicator.className = "w-2.5 h-2.5 bg-yellow-400 rounded-full shadow-[0_0_10px_rgba(250,204,21,0.6)]";
-                    accDisplay.className = "font-bold text-yellow-300 text-sm";
-                    statusDisplay.innerText = "GPS CUKUP";
-                    adviceDisplay.classList.remove('hidden');
-                    adviceDisplay.innerText = "COBA CARI TEMPAT TERBUKA";
-                    banner.classList.remove('pulse-red');
-                    formWarning.classList.add('hidden');
-                } else {
-                    indicator.className = "w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.6)] animate-bounce";
-                    accDisplay.className = "font-bold text-red-300 text-sm";
-                    statusDisplay.innerText = "GPS TIDAK AKURAT";
-                    adviceDisplay.classList.remove('hidden');
-                    adviceDisplay.innerText = "KELUAR RUMAH / RUANGAN SEKARANG!";
-                    banner.classList.add('pulse-red');
-                    formWarning.classList.remove('hidden');
-                }
-                accDisplay.innerText = currentPos.accuracy + "m";
-            }, (err) => {
-                let msg = "⚠️ Gagal akses GPS";
-                if(err.code === 1) msg = "⚠️ Izin GPS ditolak!";
-                showToast(msg);
-            }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+                indicator.className = currentPos.accuracy <= 20 ? "w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" : "w-2.5 h-2.5 bg-red-500 rounded-full";
+                document.getElementById('gps-status').innerText = currentPos.accuracy <= 20 ? "GPS AKURAT" : "MENCARI SINYAL...";
+            }, null, { enableHighAccuracy: true });
         }
 
+        // --- SISTEM SCANNER QR ---
         async function openScanner() {
-            try {
-                document.getElementById('scanner-view').classList.remove('hidden');
-                document.getElementById('form-section').classList.add('hidden');
-                document.getElementById('history-section').classList.add('hidden');
-                
-                if (html5QrCode) await html5QrCode.stop().catch(() => {});
-
-                html5QrCode = new Html5Qrcode("reader");
-                const config = { fps: 15, qrbox: { width: 250, height: 250 } };
-
-                await html5QrCode.start(
-                    { facingMode: "environment" }, 
-                    config, 
-                    (decodedText) => {
-                        closeScanner();
-                        // Bersihkan hasil scan dari karakter aneh
-                        const cleanNop = decodedText.replace(/[^0-9.\-]/g, '');
-                        fetchDataByNOP(cleanNop);
-                    }
-                );
-            } catch (err) {
-                console.error(err);
-                document.getElementById('scanner-view').classList.add('hidden');
-                showToast("❌ Kamera Error: Berikan izin & gunakan HTTPS");
-            }
+            document.getElementById('scanner-view').classList.remove('hidden');
+            document.getElementById('form-section').classList.add('hidden');
+            if (html5QrCode) await html5QrCode.stop().catch(() => {});
+            html5QrCode = new Html5Qrcode("reader");
+            await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, (txt) => {
+                closeScanner();
+                fetchDataByNOP(txt.replace(/[^0-9]/g, ''));
+            });
         }
 
         async function closeScanner() {
-            if (html5QrCode) {
-                try {
-                    await html5QrCode.stop();
-                    html5QrCode = null;
-                } catch (e) {}
-            }
+            if (html5QrCode) await html5QrCode.stop();
             document.getElementById('scanner-view').classList.add('hidden');
         }
 
-        // Fungsi manual search
         function manualSearch() {
-            const manualNop = document.getElementById('inp-nop').value;
-            if (manualNop.length < 5) {
-                showToast("⚠️ Ketik minimal 5 digit NOP");
-                return;
-            }
-            fetchDataByNOP(manualNop);
+            const nop = document.getElementById('inp-nop').value;
+            if (nop.length < 5) return showToast("⚠️ NOP terlalu pendek");
+            fetchDataByNOP(nop);
         }
 
+        // --- SISTEM DATABASE ---
         async function fetchDataByNOP(nop) {
-            toggleLoading(true, "MENCARI NOP: " + nop);
+            toggleLoading(true, "MENCARI DATA...");
             try {
-                // Pastikan sheet 'Database' sudah diformat Plain Text untuk kolom NOP
                 const resp = await fetch(`${SCRIPT_URL}?action=getNopData&nop=${nop}`);
                 const res = await resp.json();
                 
-                // Selalu tampilkan form, baik data ketemu atau tidak (agar bisa input manual jika darurat)
-                showSection('scan'); 
-                document.getElementById('inp-nop').value = nop; // Set NOP yang dicari
+                showSection('scan');
+                document.getElementById('inp-nop').value = nop;
 
                 if(res.result === 'success') {
-                    document.getElementById('inp-nop').value = res.data.NOP;
-                    document.getElementById('inp-tahun').value = res.data.Tahun;
+                    document.getElementById('inp-tahun').value = res.data.Tahun || "2025";
                     document.getElementById('inp-nama').value = res.data.Nama_WP;
                     document.getElementById('inp-alamat').value = res.data.Alamat_OP;
                     document.getElementById('inp-rt').value = res.data.RT;
                     document.getElementById('inp-rw').value = res.data.RW;
                     document.getElementById('inp-tagihan').value = res.data.Tagihan;
-                    showToast("✅ Data WP ditemukan!");
+                    showToast("✅ Data ditemukan!");
                 } else {
-                    // Jika tidak ketemu, kosongkan field agar petugas isi manual
-                    document.getElementById('inp-nama').value = "";
-                    document.getElementById('inp-alamat').value = "";
-                    document.getElementById('inp-rt').value = "";
-                    document.getElementById('inp-rw').value = "";
-                    document.getElementById('inp-tagihan').value = "";
-                    showToast("⚠️ Data tidak ditemukan. Silakan input manual.");
-                    // Hilangkan readonly agar bisa diedit
+                    showToast("⚠️ NOP tidak ada di database. Silakan isi manual.");
                     enableManualInput();
                 }
-                document.getElementById('inp-penerima').value = ""; 
-            } catch (e) { 
-                showToast("⚠️ Masalah koneksi ke server"); 
-            } finally { 
-                toggleLoading(false); 
-            }
+            } catch (e) { showToast("⚠️ Gagal koneksi database"); }
+            finally { toggleLoading(false); }
         }
 
         function enableManualInput() {
             ['inp-tahun','inp-nama','inp-alamat','inp-rt','inp-rw','inp-tagihan'].forEach(id => {
-                document.getElementById(id).removeAttribute('readonly');
-                document.getElementById(id).classList.remove('bg-slate-100');
-                document.getElementById(id).classList.add('bg-white', 'border', 'border-yellow-300');
+                const el = document.getElementById(id);
+                el.removeAttribute('readonly');
+                el.classList.replace('bg-slate-100', 'bg-white');
+                el.classList.add('border', 'border-blue-200');
             });
         }
 
         async function submitData() {
             const penerima = document.getElementById('inp-penerima').value;
             if(!penerima) return showToast("⚠️ Nama Penerima wajib diisi!");
-            if(!currentPos.lat) return showToast("⚠️ Tunggu sampai GPS Terkunci!");
             
-            if(currentPos.accuracy > 50) {
-                if(!confirm("Lokasi masih kurang akurat (" + currentPos.accuracy + "m). Tetap simpan?")) return;
-            }
-
             const payload = {
                 action: 'inputData',
                 nop: document.getElementById('inp-nop').value,
@@ -391,26 +372,19 @@
                 petugas: currentUser.name
             };
 
-            toggleLoading(true, "MENGIRIM DATA...");
+            toggleLoading(true, "MENYIMPAN...");
             try {
-                const response = await fetch(SCRIPT_URL, { 
-                    method: 'POST', 
-                    body: JSON.stringify(payload) 
-                });
+                const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
                 const res = await response.json();
                 if(res.result === 'success') {
-                    showToast("🚀 Data berhasil disimpan!");
+                    showToast("🚀 Berhasil disimpan!");
                     showSection('history');
-                } else {
-                    showToast("❌ Gagal: " + res.message);
                 }
-            } catch (e) { 
-                showToast("❌ Gagal menyimpan data!"); 
-            } finally { 
-                toggleLoading(false); 
-            }
+            } catch (e) { showToast("❌ Gagal menyimpan!"); }
+            finally { toggleLoading(false); }
         }
 
+        // --- UTILS ---
         function showSection(name) {
             document.getElementById('form-section').classList.toggle('hidden', name !== 'scan');
             document.getElementById('history-section').classList.toggle('hidden', name !== 'history');
@@ -426,53 +400,33 @@
             const t = document.getElementById('toast'); 
             document.getElementById('toast-msg').innerText = m;
             t.classList.remove('translate-y-32', 'opacity-0');
-            setTimeout(() => t.classList.add('translate-y-32', 'opacity-0'), 3500);
-        }
-
-        function handleLogin() {
-            const user = document.getElementById('username').value;
-            if(!user) return showToast("Masukkan Nama Petugas!");
-            currentUser = { name: user };
-            document.getElementById('display-user').innerText = user;
-            document.getElementById('login-view').classList.add('hidden');
-            document.getElementById('main-view').classList.remove('hidden');
-            lucide.createIcons();
-            startGpsTracking(); 
+            setTimeout(() => t.classList.add('translate-y-32', 'opacity-0'), 3000);
         }
 
         async function loadHistory() {
             const list = document.getElementById('history-list');
-            list.innerHTML = '<p class="text-center py-10 animate-pulse text-[10px] text-slate-400">Menyinkronkan data...</p>';
+            list.innerHTML = '<p class="text-center py-10 animate-pulse text-[10px]">Memuat...</p>';
             try {
                 const r = await fetch(SCRIPT_URL);
                 const d = await r.json();
-                if(!Array.isArray(d) || d.length === 0) {
-                    list.innerHTML = '<div class="text-center py-10"><i data-lucide="package-open" class="mx-auto w-10 h-10 text-slate-200 mb-2"></i><p class="text-[10px] text-slate-400">Belum ada riwayat hari ini</p></div>';
-                    lucide.createIcons();
+                if(!d.length) {
+                    list.innerHTML = '<p class="text-center py-10 text-[10px]">Kosong</p>';
                 } else {
                     list.innerHTML = d.slice(-10).reverse().map(i => `
                         <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-blue-600">
-                            <div class="flex justify-between items-start mb-1">
-                                <span class="text-[9px] font-bold text-blue-600 font-mono tracking-tighter">${i.NOP}</span>
-                                <span class="text-[9px] font-extrabold uppercase ${i.Status === 'Terkirim' ? 'text-green-600' : 'text-orange-500'}">${i.Status}</span>
-                            </div>
-                            <p class="font-bold text-xs uppercase text-slate-800 truncate">${i.Nama_WP}</p>
-                            <div class="flex justify-between mt-2 text-[9px] text-slate-400 border-t border-slate-50 pt-2">
-                                <span><i data-lucide="user" class="w-2.5 h-2.5 inline mr-1"></i>${i.Penerima}</span>
-                                <span>${new Date(i.Waktu).toLocaleTimeString('id-ID')}</span>
+                            <p class="text-[9px] font-bold text-blue-600 font-mono">${i.NOP}</p>
+                            <p class="font-bold text-xs uppercase">${i.Nama_WP}</p>
+                            <div class="flex justify-between mt-2 text-[9px] text-slate-400">
+                                <span>${i.Status}</span>
+                                <span>${new Date(i.Waktu).toLocaleTimeString()}</span>
                             </div>
                         </div>
                     `).join('');
-                    lucide.createIcons();
                 }
-            } catch (e) { 
-                list.innerHTML = '<p class="text-center text-red-500 text-[10px] py-10">Gagal memuat riwayat</p>'; 
-            }
+            } catch (e) { list.innerHTML = 'Error'; }
         }
 
-        function logout() { 
-            if(confirm("Keluar aplikasi?")) location.reload(); 
-        }
+        function logout() { location.reload(); }
     </script>
 </body>
 </html>
